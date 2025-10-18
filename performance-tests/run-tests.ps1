@@ -24,8 +24,7 @@ function Invoke-Scenario {
         [int]$Rep
     )
     
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $outputDir = "results\${ScenarioName}_${timestamp}_rep${Rep}"
+    $outputDir = "results\${ScenarioName}\rep${Rep}"
     
     Write-Host "Executando $ScenarioName - Repetição $Rep/$Repetitions" -ForegroundColor Cyan
     Write-Host "Usuários: $Users | Duração: $Duration" -ForegroundColor White
