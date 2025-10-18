@@ -24,15 +24,22 @@ def load_results_data(results_dir="results"):
     scenarios = {"CenarioA": [], "CenarioB": [], "CenarioC": []}
     
     for scenario in scenarios.keys():
-        pattern = f"{results_dir}/{scenario}_*/results_stats.csv"
+        # Buscar na estrutura: results/CenarioX/repY/results_stats.csv
+        pattern = f"{results_dir}/{scenario}/rep*/results_stats.csv"
         files = glob.glob(pattern)
+        
+        print(f"Procurando arquivos para {scenario}: {pattern}")
+        print(f"Encontrados {len(files)} arquivos")
         
         for file in files:
             try:
                 df = pd.read_csv(file)
-                df['scenario'] = scenario
-                df['file_path'] = file
-                scenarios[scenario].append(df)
+                # Filtrar apenas requisições individuais (não agregadas)
+                df_filtered = df[df['Name'] != 'Aggregated'].copy()
+                df_filtered['scenario'] = scenario
+                df_filtered['file_path'] = file
+                scenarios[scenario].append(df_filtered)
+                print(f"  Carregado: {file} ({len(df_filtered)} linhas)")
             except Exception as e:
                 print(f"Erro ao ler {file}: {e}")
     
@@ -46,21 +53,20 @@ def calculate_scenario_stats(dfs):
     # Concatenar todos os DataFrames do cenário
     combined = pd.concat(dfs, ignore_index=True)
     
-    # Filtrar apenas requisições (excluir agregados)
-    requests_only = combined[combined['Type'] == 'GET'].copy() if 'Type' in combined.columns else combined
-    
+    # Calcular estatísticas agregadas por repetição
     stats = {
-        'avg_response_time': requests_only['Average Response Time'].mean(),
-        'max_response_time': requests_only['Max Response Time'].max(),
-        'min_response_time': requests_only['Min Response Time'].min(),
-        'median_response_time': requests_only['Median Response Time'].mean(),
-        'avg_requests_per_sec': requests_only['Requests/s'].mean(),
-        'total_requests': requests_only['Request Count'].sum(),
-        'failure_count': requests_only['Failure Count'].sum(),
-        'total_failure_count': requests_only['Failure Count'].sum(),
-        'success_rate': ((requests_only['Request Count'].sum() - requests_only['Failure Count'].sum()) / 
-                        requests_only['Request Count'].sum() * 100) if requests_only['Request Count'].sum() > 0 else 0,
-        'repetitions': len(dfs)
+        'avg_response_time': combined['Average Response Time'].mean(),
+        'max_response_time': combined['Max Response Time'].max(),
+        'min_response_time': combined['Min Response Time'].min(),
+        'median_response_time': combined['Median Response Time'].mean(),
+        'avg_requests_per_sec': combined['Requests/s'].sum() / len(dfs),  # Soma por repetição, depois média
+        'total_requests': combined['Request Count'].sum(),
+        'failure_count': combined['Failure Count'].sum(),
+        'success_rate': ((combined['Request Count'].sum() - combined['Failure Count'].sum()) / 
+                        combined['Request Count'].sum() * 100) if combined['Request Count'].sum() > 0 else 0,
+        'repetitions': len(dfs),
+        'p95_response_time': combined['95%'].mean(),
+        'p99_response_time': combined['99%'].mean()
     }
     
     return stats
@@ -79,15 +85,21 @@ def create_comparison_table(scenario_stats):
         'total_requests': 'Total Requisições',
         'failure_count': 'Total Falhas',
         'success_rate': 'Taxa Sucesso (%)',
-        'repetitions': 'Repetições'
+        'repetitions': 'Repetições',
+        'p95_response_time': 'P95 (ms)',
+        'p99_response_time': 'P99 (ms)'
     }
     
     df_comparison = df_comparison.rename(columns=column_mapping)
     
+    # Adicionar informações sobre os cenários
+    scenario_labels = ['Cenário A (50 usuários)', 'Cenário B (100 usuários)', 'Cenário C (200 usuários)']
+    df_comparison.index = pd.Index(scenario_labels)
+    
     # Formatar números
-    for col in ['Tempo Médio (ms)', 'Tempo Máximo (ms)', 'Tempo Mínimo (ms)', 'Tempo Mediano (ms)']:
+    for col in ['Tempo Médio (ms)', 'Tempo Máximo (ms)', 'Tempo Mínimo (ms)', 'Tempo Mediano (ms)', 'P95 (ms)', 'P99 (ms)']:
         if col in df_comparison.columns:
-            df_comparison[col] = df_comparison[col].round(2)
+            df_comparison[col] = df_comparison[col].round(1)
     
     for col in ['Req/s Médio']:
         if col in df_comparison.columns:
@@ -104,49 +116,120 @@ def create_charts(scenario_stats, output_dir="analysis"):
     os.makedirs(output_dir, exist_ok=True)
     
     # Configurar estilo
-    plt.style.use('seaborn-v0_8')
-    sns.set_palette("husl")
+    plt.style.use('default')
     
     # Dados para os gráficos
-    scenarios = list(scenario_stats.keys())
+    scenarios = ['Cenário A\n(50 usuários)', 'Cenário B\n(100 usuários)', 'Cenário C\n(200 usuários)']
     users = [50, 100, 200]  # Usuários por cenário
     
-    # Gráfico 1: Tempo de Resposta Médio
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+    # Gráfico 1: Comparação de Performance
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+    fig.suptitle('Análise de Performance - Spring PetClinic Microservices', fontsize=16, fontweight='bold')
     
-    avg_times = [scenario_stats[s]['avg_response_time'] for s in scenarios]
-    ax1.bar(scenarios, avg_times, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
-    ax1.set_title('Tempo Médio de Resposta por Cenário')
-    ax1.set_ylabel('Tempo (ms)')
-    ax1.set_xlabel('Cenário')
+    # 1. Tempo de Resposta Médio
+    avg_times = [scenario_stats['CenarioA']['avg_response_time'], 
+                 scenario_stats['CenarioB']['avg_response_time'], 
+                 scenario_stats['CenarioC']['avg_response_time']]
     
-    # Gráfico 2: Throughput (Req/s)
-    throughput = [scenario_stats[s]['avg_requests_per_sec'] for s in scenarios]
-    ax2.bar(scenarios, throughput, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
-    ax2.set_title('Throughput Médio por Cenário')
-    ax2.set_ylabel('Requisições/segundo')
-    ax2.set_xlabel('Cenário')
+    bars1 = ax1.bar(scenarios, avg_times, color=['#2E86AB', '#A23B72', '#F18F01'], alpha=0.8)
+    ax1.set_title('Tempo Médio de Resposta por Cenário', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Tempo (ms)', fontsize=12)
+    ax1.grid(True, alpha=0.3)
     
-    # Gráfico 3: Taxa de Sucesso
-    success_rates = [scenario_stats[s]['success_rate'] for s in scenarios]
-    ax3.bar(scenarios, success_rates, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
-    ax3.set_title('Taxa de Sucesso por Cenário')
-    ax3.set_ylabel('Taxa de Sucesso (%)')
-    ax3.set_xlabel('Cenário')
-    ax3.set_ylim(0, 100)
+    # Adicionar valores nos barras
+    for bar, value in zip(bars1, avg_times):
+        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(avg_times)*0.01, 
+                f'{value:.1f}ms', ha='center', va='bottom', fontweight='bold')
     
-    # Gráfico 4: Escalabilidade (Usuários vs Throughput)
-    ax4.plot(users, throughput, marker='o', linewidth=2, markersize=8)
-    ax4.set_title('Escalabilidade: Usuários vs Throughput')
-    ax4.set_xlabel('Número de Usuários')
-    ax4.set_ylabel('Throughput (req/s)')
+    # 2. Throughput (Req/s)
+    throughput = [scenario_stats['CenarioA']['avg_requests_per_sec'], 
+                  scenario_stats['CenarioB']['avg_requests_per_sec'], 
+                  scenario_stats['CenarioC']['avg_requests_per_sec']]
+    
+    bars2 = ax2.bar(scenarios, throughput, color=['#2E86AB', '#A23B72', '#F18F01'], alpha=0.8)
+    ax2.set_title('Throughput por Cenário', fontsize=14, fontweight='bold')
+    ax2.set_ylabel('Requisições/segundo', fontsize=12)
+    ax2.grid(True, alpha=0.3)
+    
+    # Adicionar valores nos barras
+    for bar, value in zip(bars2, throughput):
+        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(throughput)*0.01, 
+                f'{value:.1f} req/s', ha='center', va='bottom', fontweight='bold')
+    
+    # 3. Taxa de Sucesso
+    success_rates = [scenario_stats['CenarioA']['success_rate'], 
+                     scenario_stats['CenarioB']['success_rate'], 
+                     scenario_stats['CenarioC']['success_rate']]
+    
+    bars3 = ax3.bar(scenarios, success_rates, color=['#2E86AB', '#A23B72', '#F18F01'], alpha=0.8)
+    ax3.set_title('Taxa de Sucesso por Cenário', fontsize=14, fontweight='bold')
+    ax3.set_ylabel('Taxa de Sucesso (%)', fontsize=12)
+    ax3.set_ylim(95, 100.5)
+    ax3.grid(True, alpha=0.3)
+    
+    # Adicionar valores nos barras
+    for bar, value in zip(bars3, success_rates):
+        ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.05, 
+                f'{value:.2f}%', ha='center', va='bottom', fontweight='bold')
+    
+    # 4. Escalabilidade (Usuários vs Throughput)
+    ax4.plot(users, throughput, marker='o', linewidth=3, markersize=10, color='#2E86AB')
+    ax4.set_title('Escalabilidade: Usuários vs Throughput', fontsize=14, fontweight='bold')
+    ax4.set_xlabel('Número de Usuários Simultâneos', fontsize=12)
+    ax4.set_ylabel('Throughput (req/s)', fontsize=12)
     ax4.grid(True, alpha=0.3)
+    
+    # Adicionar linha ideal de escalabilidade
+    ideal_throughput = [throughput[0] * (u/users[0]) for u in users]
+    ax4.plot(users, ideal_throughput, '--', color='gray', alpha=0.7, label='Escalabilidade Ideal')
+    ax4.legend()
+    
+    # Adicionar valores nos pontos
+    for x, y in zip(users, throughput):
+        ax4.annotate(f'{y:.1f}', (x, y), textcoords="offset points", xytext=(0,10), ha='center', fontweight='bold')
     
     plt.tight_layout()
     plt.savefig(f'{output_dir}/performance_comparison.png', dpi=300, bbox_inches='tight')
     plt.close()
     
-    print(f"Gráficos salvos em {output_dir}/performance_comparison.png")
+    # Gráfico adicional: Percentis de Latência
+    fig2, ax = plt.subplots(1, 1, figsize=(12, 8))
+    
+    p95_times = [scenario_stats['CenarioA']['p95_response_time'], 
+                 scenario_stats['CenarioB']['p95_response_time'], 
+                 scenario_stats['CenarioC']['p95_response_time']]
+    p99_times = [scenario_stats['CenarioA']['p99_response_time'], 
+                 scenario_stats['CenarioB']['p99_response_time'], 
+                 scenario_stats['CenarioC']['p99_response_time']]
+    
+    x = range(len(scenarios))
+    width = 0.35
+    
+    bars1 = ax.bar([i - width/2 for i in x], avg_times, width, label='Tempo Médio', color='#2E86AB', alpha=0.8)
+    bars2 = ax.bar([i + width/2 for i in x], p95_times, width, label='P95', color='#A23B72', alpha=0.8)
+    
+    ax.set_title('Comparação de Latências por Cenário', fontsize=16, fontweight='bold')
+    ax.set_ylabel('Tempo de Resposta (ms)', fontsize=12)
+    ax.set_xlabel('Cenários', fontsize=12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(scenarios)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Adicionar valores
+    for bars in [bars1, bars2]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2, height + max(p95_times)*0.01,
+                   f'{height:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/latency_comparison.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Gráficos salvos em {output_dir}/")
+    print(f"  - performance_comparison.png")
+    print(f"  - latency_comparison.png")
 
 def generate_report(scenario_stats, comparison_table, output_dir="analysis"):
     """Gera relatório final em texto"""
@@ -188,26 +271,26 @@ ANÁLISE COMPARATIVA:
     cenario_c = scenario_stats['CenarioC']
     
     report += f"""
-   • Cenário A (50 usuários): {cenario_a['avg_response_time']:.1f}ms em média
-   • Cenário B (100 usuários): {cenario_b['avg_response_time']:.1f}ms em média  
-   • Cenário C (200 usuários): {cenario_c['avg_response_time']:.1f}ms em média
+   • Cenário A (50 usuários): {cenario_a['avg_response_time']:.1f}ms em média (P95: {cenario_a['p95_response_time']:.1f}ms)
+   • Cenário B (100 usuários): {cenario_b['avg_response_time']:.1f}ms em média (P95: {cenario_b['p95_response_time']:.1f}ms)
+   • Cenário C (200 usuários): {cenario_c['avg_response_time']:.1f}ms em média (P95: {cenario_c['p95_response_time']:.1f}ms)
    
-   Ao dobrar os usuários de 50 para 100, o tempo médio {"aumentou" if cenario_b['avg_response_time'] > cenario_a['avg_response_time'] else "diminuiu"} {abs(cenario_b['avg_response_time'] - cenario_a['avg_response_time']):.1f}ms.
-   No pico de 200 usuários, o tempo médio foi {cenario_c['avg_response_time'] - cenario_a['avg_response_time']:.1f}ms maior que o cenário base.
+   🔍 QUANDO DOBRAMOS OS USUÁRIOS (50→100): O tempo médio {"aumentou" if cenario_b['avg_response_time'] > cenario_a['avg_response_time'] else "diminuiu"} {abs(cenario_b['avg_response_time'] - cenario_a['avg_response_time']):.1f}ms ({((cenario_b['avg_response_time'] - cenario_a['avg_response_time'])/cenario_a['avg_response_time']*100):+.1f}%).
+   🔍 NO PICO (200 usuários): O tempo médio foi {cenario_c['avg_response_time'] - cenario_a['avg_response_time']:+.1f}ms comparado ao cenário base ({((cenario_c['avg_response_time'] - cenario_a['avg_response_time'])/cenario_a['avg_response_time']*100):+.1f}%).
 
 2. THROUGHPUT (REQUISIÇÕES POR SEGUNDO):
    • Cenário A: {cenario_a['avg_requests_per_sec']:.1f} req/s
-   • Cenário B: {cenario_b['avg_requests_per_sec']:.1f} req/s
-   • Cenário C: {cenario_c['avg_requests_per_sec']:.1f} req/s
+   • Cenário B: {cenario_b['avg_requests_per_sec']:.1f} req/s ({((cenario_b['avg_requests_per_sec'] - cenario_a['avg_requests_per_sec'])/cenario_a['avg_requests_per_sec']*100):+.1f}%)
+   • Cenário C: {cenario_c['avg_requests_per_sec']:.1f} req/s ({((cenario_c['avg_requests_per_sec'] - cenario_a['avg_requests_per_sec'])/cenario_a['avg_requests_per_sec']*100):+.1f}%)
    
-   O sistema {"escala bem" if cenario_c['avg_requests_per_sec'] > cenario_a['avg_requests_per_sec'] else "não escala linearmente"} com o aumento de usuários.
+   🔍 ESCALABILIDADE: {"O sistema escala bem" if cenario_c['avg_requests_per_sec'] > cenario_b['avg_requests_per_sec'] > cenario_a['avg_requests_per_sec'] else "O sistema não escala linearmente"} - cada duplicação de usuários resultou em {"aumento proporcional" if cenario_c['avg_requests_per_sec']/cenario_a['avg_requests_per_sec'] > 3 else "aumento menor que o esperado"} no throughput.
 
 3. CONFIABILIDADE:
-   • Taxa de sucesso Cenário A: {cenario_a['success_rate']:.2f}%
-   • Taxa de sucesso Cenário B: {cenario_b['success_rate']:.2f}% 
-   • Taxa de sucesso Cenário C: {cenario_c['success_rate']:.2f}%
+   • Taxa de sucesso Cenário A: {cenario_a['success_rate']:.2f}% ({cenario_a['failure_count']} falhas)
+   • Taxa de sucesso Cenário B: {cenario_b['success_rate']:.2f}% ({cenario_b['failure_count']} falhas)
+   • Taxa de sucesso Cenário C: {cenario_c['success_rate']:.2f}% ({cenario_c['failure_count']} falhas)
    
-   {f"O sistema manteve alta confiabilidade em todos os cenários." if min(cenario_a['success_rate'], cenario_b['success_rate'], cenario_c['success_rate']) > 95 else "Houve degradação na confiabilidade com o aumento da carga."}
+   🔍 NO PICO: A taxa de sucesso {"se manteve estável" if cenario_c['success_rate'] > 99 else f"caiu {cenario_a['success_rate'] - cenario_c['success_rate']:.2f} pontos percentuais"} quando chegamos a 200 usuários.
 
 CONCLUSÕES:
 ----------
