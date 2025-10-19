@@ -1,0 +1,25 @@
+Method,Name,Error,Occurrences
+GET,/api/customer/owners/5448,CatchResponseError('Falha ao obter proprietário 5448: 405'),4
+GET,/api/customer/owners/5451,CatchResponseError('Falha ao obter proprietário 5451: 405'),1
+GET,/api/customer/owners/5,CatchResponseError('Falha ao obter proprietário 5: 405'),772
+GET,/api/customer/owners/5459,CatchResponseError('Falha ao obter proprietário 5459: 405'),2
+GET,/api/customer/owners/2,CatchResponseError('Falha ao obter proprietário 2: 405'),741
+GET,/api/customer/owners/5458,CatchResponseError('Falha ao obter proprietário 5458: 405'),1
+GET,/api/customer/owners/6,CatchResponseError('Falha ao obter proprietário 6: 405'),710
+GET,/api/customer/owners/5434,CatchResponseError('Falha ao obter proprietário 5434: 405'),3
+GET,/api/customer/owners/4,CatchResponseError('Falha ao obter proprietário 4: 405'),799
+GET,/api/customer/owners/8,CatchResponseError('Falha ao obter proprietário 8: 405'),739
+GET,/api/customer/owners/3,CatchResponseError('Falha ao obter proprietário 3: 405'),735
+GET,/api/customer/owners/5450,CatchResponseError('Falha ao obter proprietário 5450: 405'),1
+GET,/api/customer/owners/5432,CatchResponseError('Falha ao obter proprietário 5432: 405'),2
+GET,/api/vet/vets,CatchResponseError('Falha ao obter lista de veterinários: 405'),4808
+GET,/api/customer/owners/10,CatchResponseError('Falha ao obter proprietário 10: 405'),690
+GET,/api/customer/owners/5449,CatchResponseError('Falha ao obter proprietário 5449: 405'),4
+GET,/api/customer/owners/5457,CatchResponseError('Falha ao obter proprietário 5457: 405'),1
+GET,/api/customer/owners/5452,CatchResponseError('Falha ao obter proprietário 5452: 405'),2
+GET,/api/customer/owners/5433,CatchResponseError('Falha ao obter proprietário 5433: 405'),3
+POST,/api/customer/owners,CatchResponseError('Falha ao criar proprietário: 503'),2560
+GET,/api/customer/owners/7,CatchResponseError('Falha ao obter proprietário 7: 405'),776
+GET,/api/customer/owners,CatchResponseError('Falha ao obter lista de proprietários: 405'),10086
+GET,/api/customer/owners/1,CatchResponseError('Falha ao obter proprietário 1: 405'),727
+GET,/api/customer/owners/9,CatchResponseError('Falha ao obter proprietário 9: 405'),742

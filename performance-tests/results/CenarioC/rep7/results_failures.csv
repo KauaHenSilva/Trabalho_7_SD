@@ -1,0 +1,23 @@
+Method,Name,Error,Occurrences
+GET,/api/customer/owners/5,CatchResponseError('Falha ao obter proprietário 5: 405'),674
+GET,/api/customer/owners/5672,CatchResponseError('Falha ao obter proprietário 5672: 405'),2
+GET,/api/customer/owners/2,CatchResponseError('Falha ao obter proprietário 2: 405'),750
+GET,/api/customer/owners/6,CatchResponseError('Falha ao obter proprietário 6: 405'),704
+GET,/api/customer/owners/5694,CatchResponseError('Falha ao obter proprietário 5694: 405'),1
+GET,/api/customer/owners/5686,CatchResponseError('Falha ao obter proprietário 5686: 405'),1
+GET,/api/customer/owners/4,CatchResponseError('Falha ao obter proprietário 4: 405'),700
+GET,/api/customer/owners/8,CatchResponseError('Falha ao obter proprietário 8: 405'),733
+GET,/api/customer/owners/5681,CatchResponseError('Falha ao obter proprietário 5681: 405'),1
+GET,/api/customer/owners/5689,CatchResponseError('Falha ao obter proprietário 5689: 405'),1
+GET,/api/customer/owners/5688,CatchResponseError('Falha ao obter proprietário 5688: 405'),1
+GET,/api/customer/owners/3,CatchResponseError('Falha ao obter proprietário 3: 405'),706
+GET,/api/vet/vets,CatchResponseError('Falha ao obter lista de veterinários: 405'),4689
+GET,/api/customer/owners/10,CatchResponseError('Falha ao obter proprietário 10: 405'),679
+GET,/api/customer/owners/5679,CatchResponseError('Falha ao obter proprietário 5679: 405'),2
+POST,/api/customer/owners,CatchResponseError('Falha ao criar proprietário: 503'),2412
+GET,/api/customer/owners/7,CatchResponseError('Falha ao obter proprietário 7: 405'),662
+GET,/api/customer/owners,CatchResponseError('Falha ao obter lista de proprietários: 405'),9868
+GET,/api/customer/owners/1,CatchResponseError('Falha ao obter proprietário 1: 405'),717
+GET,/api/customer/owners/5685,CatchResponseError('Falha ao obter proprietário 5685: 405'),1
+GET,/api/customer/owners/9,CatchResponseError('Falha ao obter proprietário 9: 405'),710
+GET,/api/customer/owners/5671,CatchResponseError('Falha ao obter proprietário 5671: 405'),5

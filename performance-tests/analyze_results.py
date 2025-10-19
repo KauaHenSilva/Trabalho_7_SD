@@ -21,55 +21,107 @@ from pathlib import Path
 import numpy as np
 from datetime import datetime
 
-def load_results_data(results_dir="results"):
-    """Carrega todos os arquivos CSV de resultados com estrutura otimizada"""
+def load_results_data_with_warmup_exclusion(results_dir="results"):
+    """
+    Carrega dados excluindo períodos de aquecimento conforme especificado:
+    - Cenário A (50 usuários, 10 min): descartar 1º minuto (60s)
+    - Cenário B (100 usuários, 10 min): descartar 1º minuto (60s)  
+    - Cenário C (200 usuários, 5 min): descartar primeiros 30s
+    """
     scenario_stats = {}
     
     scenario_mapping = {
-        'CenarioA': {'name': 'Cenário A (50 usuários)', 'users': 50},
-        'CenarioB': {'name': 'Cenário B (100 usuários)', 'users': 100}, 
-        'CenarioC': {'name': 'Cenário C (200 usuários)', 'users': 200}
+        'CenarioA': {
+            'name': 'Cenário A (50 usuários)', 
+            'users': 50, 
+            'warmup_seconds': 60,
+            'total_duration': 600  # 10 min
+        },
+        'CenarioB': {
+            'name': 'Cenário B (100 usuários)', 
+            'users': 100, 
+            'warmup_seconds': 60,
+            'total_duration': 600  # 10 min
+        }, 
+        'CenarioC': {
+            'name': 'Cenário C (200 usuários)', 
+            'users': 200, 
+            'warmup_seconds': 30,
+            'total_duration': 300  # 5 min
+        }
     }
     
     for scenario_dir, info in scenario_mapping.items():
-        pattern = f"{results_dir}/{scenario_dir}/rep*/results_stats.csv"
+        # Buscar arquivos de histórico que contêm timestamps
+        pattern = f"{results_dir}/{scenario_dir}/rep*/results_stats_history.csv"
         files = glob.glob(pattern)
         
         print(f"Processando {info['name']}: {len(files)} repetições")
+        print(f"  Descartando aquecimento: {info['warmup_seconds']}s iniciais")
         
         all_stats = []
+        valid_repetitions = 0
+        
         for file in files:
             try:
                 df = pd.read_csv(file)
-                df_filtered = df[df['Name'] != 'Aggregated'].copy()
                 
-                if len(df_filtered) > 0:
-                    total_requests = df_filtered['Request Count'].sum()
-                    total_failures = df_filtered['Failure Count'].sum()
-                    success_rate = ((total_requests - total_failures) / total_requests * 100) if total_requests > 0 else 0
-                    
-                    rep_stats = {
-                        'avg_response_time': df_filtered['Average Response Time'].mean(),
-                        'median_response_time': df_filtered['Median Response Time'].mean(),
-                        'max_response_time': df_filtered['Max Response Time'].max(),
-                        'min_response_time': df_filtered['Min Response Time'].min(),
-                        'p95_response_time': df_filtered['95%'].mean(), 
-                        'p99_response_time': df_filtered['99%'].mean(),
-                        'success_rate': success_rate,
-                        'requests_per_sec': df_filtered['Requests/s'].sum(),
-                        'total_requests': total_requests,
-                        'total_failures': total_failures
-                    }
-                    all_stats.append(rep_stats)
+                # Filtrar apenas dados agregados (linha 'Aggregated')
+                df_aggregated = df[df['Name'] == 'Aggregated'].copy()
+                
+                if len(df_aggregated) == 0:
+                    print(f"  ⚠️  Nenhum dado agregado encontrado em {file}")
+                    continue
+                
+                # Obter timestamp inicial
+                start_timestamp = df_aggregated['Timestamp'].min()
+                warmup_end_timestamp = start_timestamp + info['warmup_seconds']
+                
+                # Filtrar dados após o período de aquecimento
+                df_valid = df_aggregated[df_aggregated['Timestamp'] >= warmup_end_timestamp].copy()
+                
+                if len(df_valid) == 0:
+                    print(f"  ⚠️  Nenhum dado válido após aquecimento em {file}")
+                    continue
+                
+                # Calcular estatísticas da repetição (após aquecimento)
+                # Usar dados do final do período (estado estável)
+                final_data = df_valid.iloc[-1]  # Último registro = estado final
+                
+                rep_stats = {
+                    'avg_response_time': final_data['Total Average Response Time'],
+                    'median_response_time': final_data['Total Median Response Time'],
+                    'max_response_time': final_data['Total Max Response Time'],
+                    'min_response_time': final_data['Total Min Response Time'],
+                    'p95_response_time': final_data['95%'] if pd.notna(final_data['95%']) else final_data['Total Average Response Time'],
+                    'p99_response_time': final_data['99%'] if pd.notna(final_data['99%']) else final_data['Total Average Response Time'],
+                    'success_rate': ((final_data['Total Request Count'] - final_data['Total Failure Count']) / 
+                                   final_data['Total Request Count'] * 100) if final_data['Total Request Count'] > 0 else 0,
+                    'requests_per_sec': df_valid['Requests/s'].mean(),  # Média do throughput no período válido
+                    'total_requests': final_data['Total Request Count'],
+                    'total_failures': final_data['Total Failure Count'],
+                    'valid_duration': len(df_valid),  # Segundos de dados válidos
+                    'warmup_discarded': info['warmup_seconds']
+                }
+                
+                all_stats.append(rep_stats)
+                valid_repetitions += 1
+                
+                print(f"  ✅ Rep {valid_repetitions}: {rep_stats['total_requests']} req, "
+                      f"{rep_stats['success_rate']:.1f}% sucesso, "
+                      f"{rep_stats['avg_response_time']:.1f}ms avg")
                     
             except Exception as e:
-                print(f"Erro ao processar {file}: {e}")
+                print(f"  ❌ Erro ao processar {file}: {e}")
         
         if all_stats:
-            # Calcular médias das repetições
+            # Calcular médias das repetições válidas
             scenario_stats[scenario_dir] = {
                 'name': info['name'],
                 'users': info['users'],
+                'warmup_seconds': info['warmup_seconds'],
+                'total_duration': info['total_duration'],
+                'valid_repetitions': valid_repetitions,
                 'avg_response_time': np.mean([s['avg_response_time'] for s in all_stats]),
                 'median_response_time': np.mean([s['median_response_time'] for s in all_stats]),
                 'max_response_time': np.max([s['max_response_time'] for s in all_stats]),
@@ -83,6 +135,10 @@ def load_results_data(results_dir="results"):
                 'repetitions': len(all_stats),
                 'all_repetitions': all_stats  # Guardar dados individuais
             }
+            
+            print(f"  📊 Resumo {info['name']}: {valid_repetitions} repetições válidas")
+        else:
+            print(f"  ❌ Nenhuma repetição válida encontrada para {info['name']}")
     
     return scenario_stats
 
@@ -99,7 +155,9 @@ def create_detailed_tables(scenario_stats, output_dir="analysis"):
         consolidated_stats = {
             'Cenário': stats['name'],
             'Usuários': stats['users'],
-            'Repetições': stats['repetitions'],
+            'Repetições Válidas': stats['valid_repetitions'],
+            'Aquecimento Descartado (s)': stats['warmup_seconds'],
+            'Duração Total (s)': stats['total_duration'],
             'Tempo Médio (ms)': stats['avg_response_time'],
             'Tempo Mediano (ms)': stats['median_response_time'],
             'Tempo Máximo (ms)': stats['max_response_time'],
@@ -397,9 +455,9 @@ def main():
     """Função principal consolidada"""
     print("=== ANÁLISE COMPLETA DOS RESULTADOS DE PERFORMANCE ===\n")
     
-    # 1. Carregar dados
-    print("📂 Carregando dados dos resultados...")
-    scenario_stats = load_results_data()
+    # 1. Carregar dados com exclusão de aquecimento
+    print("📂 Carregando dados dos resultados (descartando períodos de aquecimento)...")
+    scenario_stats = load_results_data_with_warmup_exclusion()
     
     if not scenario_stats:
         print("❌ Nenhum resultado encontrado! Certifique-se de que os testes foram executados.")
@@ -426,7 +484,7 @@ def main():
     
     for scenario_id, stats in scenario_stats.items():
         print(f"\n{stats['name']}:")
-        print(f"  • Repetições processadas: {stats['repetitions']}")
+        print(f"  • Repetições processadas: {stats['valid_repetitions']} (aquecimento: {stats['warmup_seconds']}s descartados)")
         print(f"  • Tempo médio: {stats['avg_response_time']:.1f}ms")
         print(f"  • P95: {stats['p95_response_time']:.1f}ms")
         print(f"  • Throughput: {stats['avg_requests_per_sec']:.1f} req/s")
