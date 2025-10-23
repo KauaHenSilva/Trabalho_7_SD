@@ -1,0 +1,303 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+    \title{Conference Paper Title*\\
+    {\footnotesize \textsuperscript{*}Note: Sub-titles are not captured in Xplore and should not be used}
+    \thanks{Identify applicable funding agency here. If none, delete this.}
+    }
+
+    \author{\IEEEauthorblockN{1\textsuperscript{st} Kaua Henrique da Silva} \IEEEauthorblockA{\textit{Dept. Sistemas de Informação} \\ \textit{Universidade Federal do Piauí(UFPI)}\\ Picos,Piauí-BR \\ kaua.da@ufpi.edu.br}
+    \and \IEEEauthorblockN{2\textsuperscript{nd} Jonas César Gomes Nunes} \IEEEauthorblockA{\textit{Dept. Sistemas de Informação} \\ \textit{Universidade Federal do Piauí(UFPI)}\\ Picos,Piauí-BR \\ jonas.nunes@ufpi.edu.br}
+    \and \IEEEauthorblockN{3\textsuperscript{rd} Flávio Lima Martins} \IEEEauthorblockA{\textit{Dept. Sistemas de Informação} \\ \textit{Universidade Federal do Piauí(UFPI)}\\ Picos,Piauí-BR \\ email address or ORCID}
+    }
+
+    \maketitle
+
+    \begin{abstract}
+        Este trabalho apresenta uma avaliação de desempenho da aplicação Spring PetClinic Microservices, uma versão modularizada do sistema Spring PetClinic amplamente utilizado para demonstrações do framework Spring. O objetivo foi analisar o comportamento da aplicação sob diferentes condições de carga, utilizando a ferramenta Locust para simular acessos concorrentes e coletar métricas de desempenho. Foram definidos três cenários de teste — leve (50 usuários), moderado (100 usuários) e pico (200 usuários) — executados com diferentes durações e repetições. As métricas analisadas incluíram tempo médio de resposta, throughput (requisições por segundo) e taxa de sucesso. Os resultados revelaram um comportamento paradoxal: embora o sistema apresente redução no tempo médio de resposta e aumento expressivo do throughput com o aumento da carga, também mostrou baixa confiabilidade, com altas taxas de falha em todos os cenários. Esses achados evidenciam a necessidade de ajustes na configuração dos microsserviços e na infraestrutura subjacente para garantir melhor equilíbrio entre escalabilidade e confiabilidade.
+    \end{abstract}
+
+    \begin{IEEEkeywords}
+       Spring PetClinic, microsserviços, Locust, desempenho, testes de carga, escalabilidade.
+    \end{IEEEkeywords}
+
+    \section{Introdução}
+    A crescente adoção de arquiteturas baseadas em microsserviços tem transformado a forma como sistemas distribuídos são desenvolvidos e mantidos. Essa abordagem oferece benefícios como modularidade, escalabilidade e facilidade de implantação independente, mas também impõe desafios relacionados à comunicação entre serviços, gestão de recursos e confiabilidade sob alta carga.
+    
+    Nesse contexto, a análise de desempenho torna-se essencial para compreender como esses sistemas se comportam em diferentes cenários de uso e para identificar possíveis gargalos de infraestrutura ou limitações arquiteturais.
+
+    A aplicação Spring PetClinic Microservices é uma implementação de referência amplamente utilizada para demonstrar as capacidades do Spring Framework. Ela é composta por múltiplos serviços independentes — como API Gateway, Customers, Vets, Visits e Database — que interagem via APIs RESTful. Essa modularização permite a análise detalhada de desempenho de cada componente, além de servir como base experimental para estudos sobre escalabilidade e confiabilidade em sistemas baseados em microsserviços.
+
+    O presente trabalho tem como objetivo avaliar o desempenho do Spring PetClinic Microservices sob diferentes níveis de carga de usuários, utilizando a ferramenta de testes de carga Locust. Foram realizados três cenários experimentais, variando de 50 a 200 usuários simultâneos, para medir métricas fundamentais como tempo de resposta, throughput e taxa de sucesso. Os experimentos buscaram responder até que ponto a aplicação mantém um desempenho satisfatório à medida que a carga aumenta, bem como identificar os limites de confiabilidade da arquitetura.
+    
+    A estrutura do artigo é organizada da seguinte forma: a Seção II descreve a metodologia e o ambiente de testes; a Seção III apresenta e analisa os resultados obtidos; a Seção IV discute as conclusões e implicações dos achados; e a Seção V aborda as limitações do estudo e perspectivas para trabalhos futuros.
+
+
+    \section{Metodologia}
+
+    Esta seção descreve a metodologia adotada para a realização dos experimentos,
+    incluindo a descrição do sistema testado e os procedimentos de teste
+    utilizados.
+
+    \subsection{Sistema Testado}
+
+    O sistema testado é uma aplicação Java baseada na arquitetura de microsserviços,
+    conhecida como Spring PetClinic Microservices\footnote{\url{https://github.com/spring-petclinic/spring-petclinic-microservices}}.
+    Essa aplicação é uma versão modularizada do Spring PetClinic, que é amplamente
+    utilizada para demonstrar as capacidades do framework Spring. A versão de
+    microsserviços divide a aplicação em vários serviços independentes, cada um responsável
+    por uma funcionalidade específica, como gerenciamento de proprietários, veterinários,
+    visitas e pets.
+
+    Cada serviço é implementado como um aplicativo Spring Boot separado, permitindo
+    que sejam desenvolvidos, implantados e escalados de forma independente. A comunicação
+    entre os serviços é realizada por meio de APIs RESTful, o que facilita a
+    integração e a interoperabilidade entre eles. A aplicação também utiliza um banco
+    de dados relacional para armazenar os dados dos usuários e suas interações com
+    a clínica veterinária.
+
+    Este trabalho foca na análise de desempenho e escalabilidade da aplicação Spring
+    PetClinic Microservices, avaliando como ela se comporta sob diferentes
+    cargas de trabalho ao incrementar o número de usuários simultâneos e
+    operações realizadas. Foram realizados testes de carga utilizando ferramentas
+    específicas para simular o acesso concorrente ao sistema, permitindo a
+    coleta de métricas relevantes para a avaliação do desempenho. Os endpoints utilzados
+    nos testes incluem:
+
+    \begin{itemize}
+        \item GET /owners/{ownerId}: Recupera informações de um proprietário específico.
+
+        \item GET /owners: Lista todos os proprietários cadastrados.
+
+        \item GET /vets: Lista todos os veterinários cadastrados.
+
+        \item POST /owners: Cria um novo proprietário na aplicação.
+    \end{itemize}
+
+    \subsection{Teste}
+
+    Os testes foram realizados utilizando a biblioteca \texttt{Locust}\footnote{\url{https://locust.io/}},
+    uma ferramenta de código aberto para testes de carga e desempenho. O Locust permite
+    simular múltiplos usuários virtuais que interagem com a aplicação,
+    possibilitando a avaliação do comportamento do sistema sob diferentes
+    condições de carga. A configuração dos testes incluiu a definição do número de
+    usuários simultâneos, a taxa de incremento de usuários e a duração total do
+    teste. Cada usuário virtual aguarda entre 1 a 3 segundos entre requisições para
+    simular comportamento realista. Foram implementados 3 cenários de teste, sendo
+    cada cenário executado 8 vezes, totalizando 24 execuções. Os cenários são denominados:
+    A, B e C.
+
+    O mix de requisições implementado seguiu a seguinte distribuição para simular
+    um padrão de uso típico da aplicação: 40\% das requisições para GET /owners
+    (listagem de proprietários), 30\% para GET /owners/\{id\} (consulta de
+    proprietário específico), 20\% para GET /vets (listagem de veterinários) e
+    10\% para POST /owners (criação de novos proprietários).
+
+    \subsubsection{Cenário A}
+
+    No cenário A, foram simulados 50 usuários simultâneos, com um incremento gradual
+    até atingir esse número e mantê-lo constante. O teste teve uma duração total
+    de 10 minutos, durante os quais os usuários virtuais executaram requisições continuamente
+    seguindo o mix de endpoints definido. Este cenário tem como objetivo avaliar
+    o desempenho da aplicação sob uma carga moderada, permitindo observar como o
+    sistema responde a um aumento no número de usuários. Foram descartados os
+    primeiros 60 segundos para estabilização do sistema.
+
+    \subsubsection{Cenário B}
+
+    No cenário B, a carga foi aumentada para 100 usuários simultâneos, com um incremento
+    gradual semelhante ao cenário A. O teste também teve uma duração total de 10
+    minutos, com os usuários virtuais executando requisições continuamente seguindo
+    o mesmo mix de endpoints. Este cenário visa analisar o comportamento da
+    aplicação sob uma carga mais intensa, permitindo identificar possíveis gargalos
+    de desempenho e avaliar a escalabilidade do sistema. Foram descartados os
+    primeiros 60 segundos para estabilização do sistema.
+
+    \subsubsection{Cenário C}
+
+    No cenário C, a carga máxima foi testada com 200 usuários simultâneos, seguindo
+    o mesmo padrão de incremento gradual. A duração do teste foi reduzida para 5
+    minutos, com os usuários virtuais executando requisições continuamente seguindo
+    o mix de endpoints estabelecido. Este cenário é crucial para entender os
+    limites da aplicação e identificar quaisquer falhas ou degradações de
+    desempenho que possam ocorrer sob condições extremas de carga. Foram descartados
+    os primeiros 30 segundos para estabilização do sistema.
+
+    \section{Resultados}
+
+    Esta seção apresenta os resultados dos testes de performance realizados nos três
+    cenários definidos, analisando as métricas de desempenho, escalabilidade e confiabilidade
+    da aplicação Spring PetClinic Microservices.
+    
+    \subsection{Análise do Tempo de Resposta}
+
+    A Figura \ref{fig:tempo_resposta} apresenta a comparação do tempo médio de
+    resposta entre os três cenários testados. Observa-se um comportamento contraintuitivo:
+    o tempo de resposta diminui conforme o número de usuários aumenta. No cenário
+    A (50 usuários), o tempo médio foi de 582,1ms, reduzindo para 410,9ms no cenário
+    B (100 usuários) e chegando a 320,0ms no cenário C (200 usuários). Essa
+    redução de aproximadamente 45\% entre o cenário A e C pode indicar que o sistema
+    possui algum mecanismo de otimização sob alta carga ou que existe saturação em
+    componentes específicos que fazem com que requisições sejam processadas mais
+    rapidamente, porém com menor confiabilidade.
+
+    \begin{figure}[htbp]
+        \centerline{\includegraphics[width=0.8\columnwidth]{images/01_tempo_resposta.png}}
+        \caption{Tempo médio de resposta por cenário de teste}
+        \label{fig:tempo_resposta}
+    \end{figure}
+
+    \subsection{Análise da Taxa de Sucesso}
+
+    A Figura \ref{fig:taxa_sucesso} revela o principal problema identificado nos
+    testes: a degradação severa da confiabilidade do sistema com o aumento da carga.
+    A taxa de sucesso apresenta queda acentuada, partindo de 17,9\% no cenário
+    A, passando para 14,7\% no cenário B e chegando a apenas 1,6\% no cenário C.
+    Esse comportamento indica que, embora o sistema mantenha baixo tempo de resposta,
+    ele falha em processar a grande maioria das requisições sob qualquer nível
+    de carga testado, evidenciando problemas estruturais graves na arquitetura ou
+    configuração dos microsserviços.
+
+    \begin{figure}[htbp]
+        \centerline{\includegraphics[width=0.8\columnwidth]{images/03_taxa_sucesso.png}}
+        \caption{Taxa de sucesso por cenário de teste}
+        \label{fig:taxa_sucesso}
+    \end{figure}
+
+    \subsection{Análise da Escalabilidade}
+
+    A Figura \ref{fig:escalabilidade} demonstra o comportamento da escalabilidade
+    do sistema através da relação entre número de usuários e throughput. O
+    sistema apresenta excelente escalabilidade em termos de throughput, aumentando
+    de 19,8 req/s no cenário A para 87,6 req/s no cenário C, representando um
+    incremento de 342,6\%. Quando comparado com a linha de escalabilidade ideal,
+    o sistema supera as expectativas, processando mais requisições do que seria
+    esperado em uma escalabilidade linear. No entanto, essa aparente vantagem é
+    comprometida pela baixíssima taxa de sucesso, sugerindo que o alto throughput
+    é resultado do processamento rápido de requisições que falham, não
+    necessariamente de um sistema eficiente.
+
+    \begin{figure}[htbp]
+        \centerline{\includegraphics[width=0.8\columnwidth]{images/04_escalabilidade.png}}
+        \caption{Análise de escalabilidade: usuários vs throughput}
+        \label{fig:escalabilidade}
+    \end{figure}
+
+    \subsection{Síntese dos Resultados}
+
+    A Tabela \ref{tab:resultados} apresenta um resumo consolidado das principais
+    métricas coletadas durante os testes. Os resultados evidenciam um paradoxo:
+    enquanto o sistema demonstra excelente escalabilidade em throughput e
+    redução no tempo de resposta, apresenta falhas críticas de confiabilidade em
+    todos os cenários testados.
+
+    \begin{table}[htbp]
+        \caption{Resumo dos Resultados por Cenário}
+        \begin{center}
+            \begin{tabular}{|l|c|c|c|}
+                \hline
+                \textbf{Métrica}     & \textbf{Cenário A} & \textbf{Cenário B} & \textbf{Cenário C} \\
+                \hline
+                Usuários             & 50                 & 100                & 200                \\
+                \hline
+                Tempo Médio (ms)     & 582,1              & 410,9              & 320,0              \\
+                \hline
+                Throughput (req/s)   & 19,8               & 41,9               & 87,6               \\
+                \hline
+                Taxa de Sucesso (\%) & 17,9               & 14,7               & 1,6                \\
+                \hline
+                Total de Requisições & 92.474             & 196.367            & 198.323            \\
+                \hline
+                Total de Falhas      & 73.052             & 169.715            & 195.069            \\
+                \hline
+            \end{tabular}
+            \label{tab:resultados}
+        \end{center}
+    \end{table}
+
+    O comportamento observado sugere possíveis problemas na configuração dos
+    microsserviços, limitações de recursos de infraestrutura, ou falhas na
+    comunicação entre serviços que se intensificam com o aumento da carga, resultando
+    em alta taxa de falhas mesmo com processamento aparentemente eficiente.
+
+    \section{Conclusão}
+
+    Este estudo avaliou o desempenho da aplicação Spring PetClinic Microservices
+    sob diferentes cargas de trabalho, revelando aspectos importantes sobre escalabilidade
+    e confiabilidade em arquiteturas de microsserviços.
+
+    Os resultados demonstram um comportamento paradoxal do sistema: enquanto
+    apresenta excelente escalabilidade em termos de throughput (aumento de 342,6\%
+    com 4x mais usuários) e redução no tempo de resposta médio (de 582,1ms para
+    320,0ms), o sistema sofre de problemas críticos de confiabilidade, com taxa de
+    sucesso extremamente baixa em todos os cenários testados, chegando a apenas
+    1,64\% no cenário de pico.
+
+    Quando dobramos o número de usuários de 50 para 100, observamos que o tempo
+    médio diminuiu 171,2ms, contrariando expectativas típicas de sistemas sob carga
+    crescente. No cenário de pico com 200 usuários, a taxa de sucesso caiu 16,2 pontos
+    percentuais em relação ao cenário base, evidenciando a degradação da
+    confiabilidade.
+
+    Esses achados sugerem que, embora a arquitetura de microsserviços demonstre capacidade
+    de escalabilidade em throughput, existem gargalos significativos que
+    comprometem a funcionalidade do sistema. As possíveis causas incluem configurações
+    inadequadas de circuit breakers, limitações nos pools de conexão com banco
+    de dados, problemas de sincronização entre serviços, ou recursos
+    insuficientes de infraestrutura.
+
+    Para trabalhos futuros, recomenda-se: (1) investigação detalhada dos logs de
+    erro para identificar as causas raiz das falhas; (2) análise do comportamento
+    individual de cada microsserviço; (3) implementação de monitoramento de
+    métricas de infraestrutura (CPU, memória, rede); e (4) ajustes na configuração
+    dos serviços para melhorar a confiabilidade sem comprometer a escalabilidade
+    observada.
+
+    \section{Limitações}
+
+    Este estudo apresenta algumas limitações que devem ser consideradas na
+    interpretação dos resultados:
+
+    \textbf{Escopo dos Testes:} Os testes foram limitados a apenas 8 repetições por
+    cenário, embora idealmente fossem necessárias 30 repetições para garantir
+    significância estatística mais robusta. Além disso, os testes focaram apenas
+    em um subconjunto dos endpoints disponíveis na aplicação.
+
+    \textbf{Ambiente Controlado:} Os experimentos foram realizados em ambiente local,
+    que pode não refletir adequadamente as condições de um ambiente de produção
+    com múltiplos servidores, balanceamento de carga e configurações de rede mais
+    complexas.
+
+    \textbf{Falta de Monitoramento Detalhado:} Não foram coletadas métricas
+    detalhadas de infraestrutura (CPU, memória, I/O de disco, utilização de rede)
+    que poderiam ajudar a explicar o comportamento observado, especialmente as
+    altas taxas de falha.
+
+    \textbf{Análise de Causa Raiz Limitada:} Embora tenham sido identificadas altas
+    taxas de falha, não foi realizada análise detalhada dos logs de erro para
+    determinar as causas específicas das falhas, limitando a capacidade de propor
+    soluções direcionadas.
+
+    \textbf{Configuração Padrão:} Os testes utilizaram a configuração padrão da
+    aplicação Spring PetClinic Microservices, sem otimizações específicas para ambiente
+    de alta carga, o que pode ter contribuído para os problemas de
+    confiabilidade observados.
+
+    Essas limitações indicam oportunidades para estudos futuros mais abrangentes
+    que possam fornecer insights mais profundos sobre o comportamento de
+    microsserviços em ambientes de produção.
+
+    \bibliography{references}
+
+    \vspace{12pt}
+\end{document}

@@ -1,21 +1,13 @@
-# Script PowerShell para executar testes de performance do Spring PetClinic
-# 
-# Este script executa os três cenários de teste conforme especificado:
-# - Cenário A: 50 usuários por 10 min
-# - Cenário B: 100 usuários por 10 min  
-# - Cenário C: 200 usuários por 5 min
+# Configurações gerais
+$Repetitions = 10
+$FlagDir = "results/flags"
 
-param(
-    [string]$HostUrl = "http://localhost:8080",
-    [int]$Repetitions = 8
-)
+# Cria pasta de flags se não existir
+if (-not (Test-Path $FlagDir)) {
+    New-Item -ItemType Directory -Path $FlagDir | Out-Null
+}
 
-Write-Host "=== Teste de Performance Spring PetClinic ===" -ForegroundColor Green
-Write-Host "Host: $HostUrl" -ForegroundColor Yellow
-Write-Host "Repetições por cenário: $Repetitions" -ForegroundColor Yellow
-Write-Host ""
-
-# Função para executar um cenário
+# Função para executar um cenário simples
 function Invoke-Scenario {
     param(
         [string]$ScenarioName,
@@ -23,74 +15,113 @@ function Invoke-Scenario {
         [string]$Duration,
         [int]$Rep
     )
-    
+
     $outputDir = "results\${ScenarioName}\rep${Rep}"
-    
-    Write-Host "Executando $ScenarioName - Repetição $Rep/$Repetitions" -ForegroundColor Cyan
-    Write-Host "Usuários: $Users | Duração: $Duration" -ForegroundColor White
-    
-    # Criar diretório de resultados
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
     
-    # Executar Locust
+    Write-Host "Executando $ScenarioName - Repetição $Rep" -ForegroundColor Cyan
+    $HostUrl = "http://localhost:8080"  # Altere se necessário
     & locust -f locustfile.py --host=$HostUrl --users=$Users --spawn-rate=10 --run-time=$Duration --headless --csv="$outputDir\results"
-    
-    Write-Host "Resultados salvos em: $outputDir" -ForegroundColor Green
-    Write-Host ""
 }
 
-# Verificar se Locust está instalado
-try {
-    & locust --version | Out-Null
-} catch {
-    Write-Error "Locust não encontrado. Instale com: pip install locust"
-    exit 1
-}
+# Função de rollback com checagem de saúde dos containers essenciais
+function Rollback-Containers {
+    param(
+        [string[]]$EssentialContainers = @(
+            "api-gateway",
+            "customers-service",
+            "visits-service"
+        )
+    )
 
-# Verificar se o host está respondendo
-try {
-    $response = Invoke-WebRequest -Uri "$HostUrl/api/customer/owners" -Method GET -TimeoutSec 10
-    if ($response.StatusCode -ne 200) {
-        throw "Status code: $($response.StatusCode)"
-    }
-    Write-Host "Aplicação PetClinic respondendo corretamente" -ForegroundColor Green
-} catch {
-    Write-Error "Aplicação PetClinic não está respondendo em $HostUrl"
-    Write-Error "Certifique-se de que a aplicação está rodando com docker-compose up"
-    exit 1
-}
+    Write-Host "=== Rollback: Reiniciando containers ===" -ForegroundColor Yellow
+    $composeFile = "C:\projetos\kaua\Trabalho_7_SD\spring-petclinic-microservices\docker-compose.yml"
 
-# Criar diretório de resultados principal
-New-Item -ItemType Directory -Path "results" -Force | Out-Null
+    docker-compose -f $composeFile down -v
+    docker-compose -f $composeFile up -d
 
-Write-Host "Iniciando testes de performance..." -ForegroundColor Green
-Write-Host ""
+    # Aguarda containers essenciais ficarem 'healthy'
+    $timeout = 180  # segundos
+    $interval = 5
+    $elapsed = 0
+    $hostUrl = "http://localhost:8080/api/customer/owners"  # health check
+    $healthy = $false
 
-# Executar todos os cenários
-for ($rep = 1; $rep -le $Repetitions; $rep++) {
-    Write-Host "=== ROUND $rep de $Repetitions ===" -ForegroundColor Magenta
-    
-    # Cenário A: 50 usuários por 10 min
-    Invoke-Scenario -ScenarioName "CenarioA" -Users 50 -Duration "10m" -Rep $rep
-    
-    # Pausa entre cenários
-    Start-Sleep -Seconds 30
-    
-    # Cenário B: 100 usuários por 10 min
-    Invoke-Scenario -ScenarioName "CenarioB" -Users 100 -Duration "10m" -Rep $rep
-    
-    # Pausa entre cenários
-    Start-Sleep -Seconds 30
-    
-    # Cenário C: 200 usuários por 5 min
-    Invoke-Scenario -ScenarioName "CenarioC" -Users 200 -Duration "5m" -Rep $rep
-    
-    # Pausa maior entre rounds
-    if ($rep -lt $Repetitions) {
-        Write-Host "Pausa de 2 minutos antes do próximo round..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 120
+    do {
+        Start-Sleep -Seconds $interval
+        $elapsed += $interval
+
+        try {
+            $response = Invoke-WebRequest -Uri $hostUrl -UseBasicParsing -TimeoutSec 3
+            $healthy = ($response.StatusCode -eq 200)
+        } catch {
+            $healthy = $false
+        }
+
+    } while (-not $healthy -and $elapsed -lt $timeout)
+
+    if ($healthy) {
+        Write-Host "Serviço acessível e saudável." -ForegroundColor Green
+    } else {
+        Write-Warning "Timeout atingido, serviço pode não estar pronto."
     }
 }
 
-Write-Host "=== Testes Concluídos ===" -ForegroundColor Green
-Write-Host "Todos os resultados foram salvos na pasta 'results'" -ForegroundColor Green
+# Função para executar cenário com retry e rollback
+function Invoke-Scenario-WithRollback {
+    param(
+        [string]$ScenarioName,
+        [int]$Users,
+        [string]$Duration,
+        [int]$Rep
+    )
+
+    $maxRetries = 2
+    $attempt = 0
+    $success = $false
+
+    while (-not $success -and $attempt -lt $maxRetries) {
+        try {
+            Rollback-Containers
+            Invoke-Scenario -ScenarioName $ScenarioName -Users $Users -Duration $Duration -Rep $Rep
+            $success = $true
+        } catch {
+            Write-Warning ("Erro ao executar {0} Repetição {1}: {2}" -f $ScenarioName, $Rep, $_)
+            $attempt++
+            if ($attempt -ge $maxRetries) {
+                Write-Error ("Falha persistente no cenário {0} repetição {1}. Pulando." -f $ScenarioName, $Rep)
+            } else {
+                Write-Host ("Tentando novamente ({0}/{1})..." -f $attempt, $maxRetries) -ForegroundColor Cyan
+            }
+        }
+    }
+}
+
+# Função para executar cenário com flags de finalização
+function Execute-Scenario-WithFlag {
+    param(
+        [string]$ScenarioName,
+        [int]$Users,
+        [string]$Duration
+    )
+
+    for ($rep = 1; $rep -le $Repetitions; $rep++) {
+        $flagFile = Join-Path $FlagDir "${ScenarioName}_rep${rep}_finalizado.flag"
+
+        if (Test-Path $flagFile) {
+            Write-Host "=== ${ScenarioName} Repetição $rep já finalizada. Pulando..." -ForegroundColor Yellow
+            continue
+        }
+
+        Write-Host "=== ROUND $rep de $Repetitions - $ScenarioName ===" -ForegroundColor Magenta
+        Invoke-Scenario-WithRollback -ScenarioName $ScenarioName -Users $Users -Duration $Duration -Rep $rep
+        New-Item -ItemType File -Path $flagFile -Force | Out-Null
+        Write-Host "Flag criada: $flagFile" -ForegroundColor Green
+    }
+}
+
+# Execução dos cenários
+Execute-Scenario-WithFlag -ScenarioName "CenarioA" -Users 50 -Duration "10m"
+Execute-Scenario-WithFlag -ScenarioName "CenarioB" -Users 100 -Duration "10m"
+Execute-Scenario-WithFlag -ScenarioName "CenarioC" -Users 200 -Duration "5m"
+Execute-Scenario-WithFlag -ScenarioName "CenarioD" -Users 400 -Duration "5m"

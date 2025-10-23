@@ -1,0 +1,6 @@
+,Total Requests,Total Requests,Total Requests,Total Requests,Total Failures,Total Failures,Total Failures,Total Failures,Requests/s,Requests/s,Requests/s,Requests/s,Avg Response Time (ms),Avg Response Time (ms),Avg Response Time (ms),Avg Response Time (ms),p50 (ms),p50 (ms),p50 (ms),p50 (ms),p95 (ms),p95 (ms),p95 (ms),p95 (ms),p99 (ms),p99 (ms),p99 (ms),p99 (ms)
+,mean,std,min,max,mean,std,min,max,mean,std,min,max,mean,std,min,max,mean,std,min,max,mean,std,min,max,mean,std,min,max
+Cenário,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+CenarioA,14711.5,37.16,14657,14775,0.0,0.0,0,0,24.56,0.05,24.48,24.66,24.74,0.86,23.48,25.75,11.7,0.48,11,12,69.3,2.95,65,74,110.6,9.34,98,120
+CenarioB,28604.3,123.47,28450,28839,0.0,0.0,0,0,47.73,0.2,47.46,48.1,72.55,8.22,59.53,84.5,14.3,1.06,13,16,346.0,48.12,260,400,816.0,161.6,580,1100
+CenarioC,22372.8,329.51,21882,22796,107.9,212.62,0,586,74.83,1.12,73.23,76.24,566.78,38.32,522.78,637.95,35.5,3.27,29,40,3090.0,251.44,2600,3400,5400.0,1308.09,4300,8300

@@ -5,11 +5,12 @@ from locust import HttpUser, task, between
 
 class PetClinicUser(HttpUser):
     wait_time = between(1, 3)  # Espera entre 1 a 3 segundos entre requisições
-    
+
     def on_start(self):
         """Executado quando cada usuário inicia"""
         # Lista de IDs de proprietários conhecidos (1-10 existem por padrão)
         self.owner_ids = list(range(1, 11))
+        self.id_counter = 1  # Contador para IDs únicos de proprietários
     
     @task(40)  # 40% das requisições
     def get_owners(self):
@@ -43,13 +44,12 @@ class PetClinicUser(HttpUser):
     def create_owner(self):
         """POST /api/customer/owners - Cria novo proprietário"""
         # Gerar dados aleatórios para o novo proprietário
-        random_num = random.randint(1000, 9999)
         owner_data = {
-            "firstName": f"TestUser{random_num}",
-            "lastName": f"Lastname{random_num}",
-            "address": f"{random.randint(100, 999)} Test St",
-            "city": f"TestCity{random.randint(1, 100)}",
-            "telephone": f"{random.randint(1000000000, 9999999999)}"
+            "firstName": f"TestUser{self.id_counter}",
+            "lastName": f"Lastname{self.id_counter}",
+            "address": f"{self.id_counter} Test St",
+            "city": f"TestCity{self.id_counter}",
+            "telephone": f"{self.id_counter}"
         }
         
         headers = {'Content-Type': 'application/json'}

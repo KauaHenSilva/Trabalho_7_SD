@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences
+GET,/api/customer/owners,CatchResponseError('Falha ao obter lista de proprietários: 405'),1
